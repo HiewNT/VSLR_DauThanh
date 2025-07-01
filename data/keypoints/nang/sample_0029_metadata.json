@@ -1,0 +1,9 @@
+{
+  "class": "nang",
+  "sample_id": 29,
+  "num_frames": 30,
+  "keypoints_shape": [
+    30,
+    63
+  ]
+}

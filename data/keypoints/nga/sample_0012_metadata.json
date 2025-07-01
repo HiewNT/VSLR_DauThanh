@@ -1,0 +1,9 @@
+{
+  "class": "nga",
+  "sample_id": 12,
+  "num_frames": 30,
+  "keypoints_shape": [
+    30,
+    63
+  ]
+}

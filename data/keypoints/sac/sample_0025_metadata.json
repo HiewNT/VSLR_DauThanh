@@ -1,0 +1,9 @@
+{
+  "class": "sac",
+  "sample_id": 25,
+  "num_frames": 30,
+  "keypoints_shape": [
+    30,
+    63
+  ]
+}

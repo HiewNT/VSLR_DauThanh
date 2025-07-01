@@ -1,0 +1,9 @@
+{
+  "class": "hoi",
+  "sample_id": 24,
+  "num_frames": 30,
+  "keypoints_shape": [
+    30,
+    63
+  ]
+}
