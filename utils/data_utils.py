@@ -42,27 +42,30 @@ class DataProcessor:
         Lưu keypoints vào file
         
         Args:
-            keypoints: List các keypoints arrays
+            keypoints: List các keypoints arrays hoặc numpy array
             class_name: Tên lớp (huyen, sac, hoi, nga, nang)
             sample_id: ID của mẫu
         """
         if class_name not in self.classes:
             raise ValueError(f"Class {class_name} không hợp lệ. Các lớp hợp lệ: {self.classes}")
         
-        # Tạo thư mục cho lớp
         class_dir = os.path.join(self.keypoints_dir, class_name)
         os.makedirs(class_dir, exist_ok=True)
         
+        # Nếu là list thì chuyển sang numpy array
+        if isinstance(keypoints, list):
+            keypoints = np.stack(keypoints)
+        
         # Lưu keypoints
         file_path = os.path.join(class_dir, f"sample_{sample_id:04d}.npy")
-        np.save(file_path, np.array(keypoints))
+        np.save(file_path, keypoints.astype(np.float32))
         
         # Lưu metadata
         metadata = {
             'class': class_name,
             'sample_id': sample_id,
             'num_frames': len(keypoints),
-            'keypoints_shape': np.array(keypoints).shape
+            'keypoints_shape': keypoints.shape
         }
         
         metadata_path = os.path.join(class_dir, f"sample_{sample_id:04d}_metadata.json")
@@ -189,4 +192,4 @@ class DataProcessor:
     def load_label_encoder(self, file_path: str):
         """Tải label encoder"""
         with open(file_path, 'rb') as f:
-            self.label_encoder = pickle.load(f) 
+            self.label_encoder = pickle.load(f)

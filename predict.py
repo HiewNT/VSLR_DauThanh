@@ -9,8 +9,11 @@ from utils.mediapipe_utils import MediaPipeHandTracker
 from utils.data_utils import DataProcessor
 
 class TonePredictor:
-    def __init__(self):
-        """Khởi tạo TonePredictor"""
+    def __init__(self, model_type=None):
+        """Khởi tạo TonePredictor
+        Args:
+            model_type: 'lstm', 'mlp' hoặc None (tự động chọn)
+        """
         self.hand_tracker = MediaPipeHandTracker()
         self.data_processor = DataProcessor()
         self.classes = self.data_processor.classes
@@ -30,39 +33,46 @@ class TonePredictor:
         # Tải mô hình
         self.model = None
         self.label_encoder = None
-        self.model_type = None
+        self.model_type = model_type
         
-        # Tự động tải mô hình
+        # Tự động hoặc thủ công tải mô hình
         self.auto_load_model()
-    
+
     def auto_load_model(self):
-        """Tự động tải mô hình tốt nhất"""
+        """Tự động hoặc thủ công tải mô hình tốt nhất"""
         model_dir = "trained_models"
         
         if not os.path.exists(model_dir):
             print("Không tìm thấy thư mục trained_models!")
             return
         
-        # Tìm mô hình tốt nhất
-        best_model = None
+        # Nếu người dùng chọn loại mô hình cụ thể
+        if self.model_type in ['lstm', 'mlp']:
+            model_path = os.path.join(model_dir, f"{self.model_type}_model_final.h5")
+            if os.path.exists(model_path):
+                self.load_model(model_path)
+                return
+            else:
+                print(f"Không tìm thấy mô hình {self.model_type.upper()}!")
+                self.model = None
+                return
         
-        for model_type in ['lstm', 'cnn']:
+        # Nếu không, tự động chọn như cũ
+        best_model = None
+        for model_type in ['lstm', 'mlp']:
             model_path = os.path.join(model_dir, f"{model_type}_model_final.h5")
             if os.path.exists(model_path):
-                # Thử tải mô hình để kiểm tra
                 try:
                     model = tf.keras.models.load_model(model_path)
-                    # Ưu tiên LSTM
                     if model_type == 'lstm':
                         best_model = model_path
                         self.model_type = 'lstm'
                         break
                     elif best_model is None:
                         best_model = model_path
-                        self.model_type = 'cnn'
+                        self.model_type = 'mlp'
                 except:
                     continue
-        
         if best_model:
             self.load_model(best_model)
         else:
@@ -147,7 +157,7 @@ class TonePredictor:
         # Reshape cho mô hình
         if self.model_type == 'lstm':
             return keypoints_array.reshape(1, self.sequence_length, -1)
-        else:  # CNN
+        else:  # mlp
             return keypoints_array.reshape(1, self.sequence_length, -1)
     
     def predict_tone(self, keypoints_sequence: list) -> tuple:
@@ -185,8 +195,8 @@ class TonePredictor:
         """Xử lý frame và trích xuất keypoints"""
         # Trích xuất keypoints
         keypoints = self.hand_tracker.extract_keypoints(frame)
-        
-        # Vẽ landmarks nếu có
+        if not hasattr(self, '_empty_keypoints'):
+            self._empty_keypoints = np.zeros(63, dtype=np.float32)
         if keypoints is not None:
             frame = self.hand_tracker.draw_landmarks(frame, keypoints)
             if self.is_predicting:
@@ -194,8 +204,7 @@ class TonePredictor:
                 self.frame_count += 1
         else:
             if self.is_predicting:
-                # Nếu không phát hiện tay, thêm frame trống
-                self.prediction_frames.append(np.zeros(63))
+                self.prediction_frames.append(self._empty_keypoints)
                 self.frame_count += 1
         
         return frame
@@ -309,9 +318,16 @@ def main():
     """Hàm chính"""
     print("=== HỆ THỐNG DỰ ĐOÁN DẤU THANH ===")
     
-    # Khởi tạo predictor và chạy ngay lập tức
-    predictor = TonePredictor()
+    # Hỏi người dùng chọn mô hình
+    model_type = None
+    while model_type not in ['lstm', 'mlp', '']:
+        model_type = input("Chọn mô hình (lstm/mlp, Enter để tự động): ").strip().lower()
+    if model_type == '':
+        model_type = None
+    
+    # Khởi tạo predictor với lựa chọn mô hình
+    predictor = TonePredictor(model_type=model_type)
     predictor.run_prediction()
 
 if __name__ == "__main__":
-    main() 
+    main()

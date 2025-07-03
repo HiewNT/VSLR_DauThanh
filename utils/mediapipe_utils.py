@@ -37,13 +37,10 @@ class MediaPipeHandTracker:
         if results.multi_hand_landmarks:
             # Lấy keypoints từ bàn tay đầu tiên
             hand_landmarks = results.multi_hand_landmarks[0]
-            
-            # Chuyển đổi landmarks thành array
-            keypoints = []
-            for landmark in hand_landmarks.landmark:
-                keypoints.extend([landmark.x, landmark.y, landmark.z])
-            
-            return np.array(keypoints)
+            keypoints = np.empty(63, dtype=np.float32)
+            for idx, landmark in enumerate(hand_landmarks.landmark):
+                keypoints[idx*3:idx*3+3] = [landmark.x, landmark.y, landmark.z]
+            return keypoints
         
         return None
     
@@ -70,6 +67,11 @@ class MediaPipeHandTracker:
             keypoints = self.extract_keypoints(frame)
             if keypoints is not None:
                 keypoints_list.append(keypoints)
+            else:
+                # Thêm frame trống nếu không phát hiện tay
+                if not hasattr(self, '_empty_keypoints'):
+                    self._empty_keypoints = np.zeros(63, dtype=np.float32)
+                keypoints_list.append(self._empty_keypoints)
             
             frame_count += 1
         
@@ -147,4 +149,4 @@ class MediaPipeHandTracker:
     def __del__(self):
         """Giải phóng tài nguyên"""
         if hasattr(self, 'hands'):
-            self.hands.close() 
+            self.hands.close()

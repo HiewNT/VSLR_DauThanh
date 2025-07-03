@@ -63,31 +63,26 @@ class DataCollector:
         """Dừng thu thập video"""
         if not self.is_recording:
             return
-        
         self.is_recording = False
-        
         if len(self.recording_frames) == self.total_frames:
-            # Lưu keypoints
             class_name = self.classes[self.current_class]
-            self.data_processor.save_keypoints(self.recording_frames, class_name, self.sample_id)
-            
-            # Cập nhật thống kê
+            # Sử dụng numpy array để giảm overhead khi lưu
+            frames_array = np.stack(self.recording_frames)
+            self.data_processor.save_keypoints(frames_array, class_name, self.sample_id)
             self.stats[class_name] += 1
             self.stats['total'] += 1
-            
             print(f"✅ Đã lưu {len(self.recording_frames)} frames cho {self.class_names[class_name]} (ID: {self.sample_id})")
         else:
             print(f"❌ Thu thập không thành công! Chỉ có {len(self.recording_frames)} frames")
-        
-        self.recording_frames = []
+        self.recording_frames.clear()
         self.frame_count = 0
-    
+
     def process_frame(self, frame):
         """Xử lý frame và trích xuất keypoints"""
-        # Trích xuất keypoints
         keypoints = self.hand_tracker.extract_keypoints(frame)
-        
-        # Vẽ landmarks nếu có
+        # Sử dụng biến static cho frame trống để tránh tạo mới liên tục
+        if not hasattr(self, '_empty_keypoints'):
+            self._empty_keypoints = np.zeros(63)
         if keypoints is not None:
             frame = self.hand_tracker.draw_landmarks(frame, keypoints)
             if self.is_recording:
@@ -95,10 +90,8 @@ class DataCollector:
                 self.frame_count += 1
         else:
             if self.is_recording:
-                # Nếu không phát hiện tay, thêm frame trống
-                self.recording_frames.append(np.zeros(63))  # 21 landmarks * 3 coordinates
+                self.recording_frames.append(self._empty_keypoints)
                 self.frame_count += 1
-        
         return frame
     
     def draw_ui(self, frame):
@@ -151,58 +144,41 @@ class DataCollector:
     def run(self):
         """Chạy hệ thống thu thập dữ liệu"""
         cap = cv2.VideoCapture(0)
-        
         if not cap.isOpened():
             print("Không thể mở camera!")
             return
-        
-        # Thiết lập camera
         cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
         cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
         cap.set(cv2.CAP_PROP_FPS, self.fps)
-        
         print("Bắt đầu hiển thị camera...")
-        
-        while True:
-            ret, frame = cap.read()
-            if not ret:
-                break
-            
-            # Xử lý frame
-            frame = self.process_frame(frame)
-            
-            # Vẽ giao diện
-            self.draw_ui(frame)
-            
-            # Kiểm tra hoàn thành thu thập
-            if self.is_recording and self.frame_count >= self.total_frames:
-                self.stop_recording()
-            
-            cv2.imshow('Thu thập dữ liệu dấu thanh', frame)
-            
-            # Xử lý phím nhấn
-            key = cv2.waitKey(1) & 0xFF
-            
-            if key == ord('q'):
-                break
-            elif key == ord(' '):  # Space
-                if not self.is_recording:
-                    self.start_recording()
-            elif key in [ord('1'), ord('2'), ord('3'), ord('4'), ord('5')]:
-                # Chọn lớp (1-5)
-                class_idx = key - ord('1')
-                if 0 <= class_idx < len(self.classes):
-                    self.current_class = class_idx
-                    print(f"Đã chọn: {self.class_names[self.classes[self.current_class]]}")
-        
-        cap.release()
-        cv2.destroyAllWindows()
-        
-        # Hiển thị thống kê cuối cùng
-        print(f"\n=== THỐNG KÊ CUỐI CÙNG ===")
-        for cls in self.classes:
-            print(f"  {self.class_names[cls]}: {self.stats[cls]} mẫu")
-        print(f"Tổng cộng: {self.stats['total']} mẫu")
+        try:
+            while True:
+                ret, frame = cap.read()
+                if not ret:
+                    break
+                frame = self.process_frame(frame)
+                self.draw_ui(frame)
+                if self.is_recording and self.frame_count >= self.total_frames:
+                    self.stop_recording()
+                cv2.imshow('Thu thập dữ liệu dấu thanh', frame)
+                key = cv2.waitKey(1) & 0xFF
+                if key == ord('q'):
+                    break
+                elif key == ord(' '):
+                    if not self.is_recording:
+                        self.start_recording()
+                elif key in [ord('1'), ord('2'), ord('3'), ord('4'), ord('5')]:
+                    class_idx = key - ord('1')
+                    if 0 <= class_idx < len(self.classes):
+                        self.current_class = class_idx
+                        print(f"Đã chọn: {self.class_names[self.classes[self.current_class]]}")
+        finally:
+            cap.release()
+            cv2.destroyAllWindows()
+            print(f"\n=== THỐNG KÊ CUỐI CÙNG ===")
+            for cls in self.classes:
+                print(f"  {self.class_names[cls]}: {self.stats[cls]} mẫu")
+            print(f"Tổng cộng: {self.stats['total']} mẫu")
 
 def main():
     """Hàm chính"""
@@ -210,4 +186,4 @@ def main():
     collector.run()
 
 if __name__ == "__main__":
-    main() 
+    main()
