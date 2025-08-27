@@ -12,7 +12,7 @@ class TonePredictor:
     def __init__(self, model_type=None):
         """Khởi tạo TonePredictor
         Args:
-            model_type: 'lstm', 'mlp' hoặc None (tự động chọn)
+            model_type: 'lstm' hoặc None (tự động chọn)
         """
         self.hand_tracker = MediaPipeHandTracker()
         self.data_processor = DataProcessor()
@@ -39,45 +39,21 @@ class TonePredictor:
         self.auto_load_model()
 
     def auto_load_model(self):
-        """Tự động hoặc thủ công tải mô hình tốt nhất"""
+        """Tự động hoặc thủ công tải mô hình LSTM"""
         model_dir = "trained_models"
         
         if not os.path.exists(model_dir):
             print("Không tìm thấy thư mục trained_models!")
             return
         
-        # Nếu người dùng chọn loại mô hình cụ thể
-        if self.model_type in ['lstm', 'mlp']:
-            model_path = os.path.join(model_dir, f"{self.model_type}_model_final.h5")
-            if os.path.exists(model_path):
-                self.load_model(model_path)
-                return
-            else:
-                print(f"Không tìm thấy mô hình {self.model_type.upper()}!")
-                self.model = None
-                return
-        
-        # Nếu không, tự động chọn như cũ
-        best_model = None
-        for model_type in ['lstm', 'mlp']:
-            model_path = os.path.join(model_dir, f"{model_type}_model_final.h5")
-            if os.path.exists(model_path):
-                try:
-                    model = tf.keras.models.load_model(model_path)
-                    if model_type == 'lstm':
-                        best_model = model_path
-                        self.model_type = 'lstm'
-                        break
-                    elif best_model is None:
-                        best_model = model_path
-                        self.model_type = 'mlp'
-                except:
-                    continue
-        if best_model:
-            self.load_model(best_model)
+        # Tải mô hình LSTM
+        model_path = os.path.join(model_dir, "lstm_model_final.h5")
+        if os.path.exists(model_path):
+            self.load_model(model_path)
         else:
-            print("Không tìm thấy mô hình đã huấn luyện!")
+            print("Không tìm thấy mô hình LSTM!")
             print("Vui lòng chạy train_model.py trước!")
+            self.model = None
     
     def load_model(self, model_path: str):
         """
@@ -89,6 +65,7 @@ class TonePredictor:
         try:
             print(f"Đang tải mô hình từ: {model_path}")
             self.model = tf.keras.models.load_model(model_path)
+            self.model_type = 'lstm'  # Chỉ sử dụng LSTM
             
             # Tải label encoder
             encoder_path = model_path.replace('_final.h5', '_label_encoder.pkl')
@@ -99,7 +76,7 @@ class TonePredictor:
                 # Sử dụng label encoder từ data processor
                 self.label_encoder = self.data_processor.label_encoder
             
-            print(f"Mô hình {self.model_type.upper()} đã được tải thành công!")
+            print(f"Mô hình LSTM đã được tải thành công!")
             print(f"Input shape: {self.model.input_shape}")
             print(f"Số lớp: {len(self.classes)}")
             
@@ -154,11 +131,8 @@ class TonePredictor:
         # Chuẩn hóa
         keypoints_array = np.array(keypoints_sequence)
         
-        # Reshape cho mô hình
-        if self.model_type == 'lstm':
-            return keypoints_array.reshape(1, self.sequence_length, -1)
-        else:  # mlp
-            return keypoints_array.reshape(1, self.sequence_length, -1)
+        # Reshape cho mô hình LSTM
+        return keypoints_array.reshape(1, self.sequence_length, -1)
     
     def predict_tone(self, keypoints_sequence: list) -> tuple:
         """
@@ -213,7 +187,7 @@ class TonePredictor:
         """Vẽ giao diện người dùng lên frame"""
         # Thông tin mô hình
         if self.model is not None:
-            cv2.putText(frame, f"Model: {self.model_type.upper()}", (10, 30), 
+            cv2.putText(frame, "Model: LSTM", (10, 30), 
                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
         else:
             cv2.putText(frame, "No model!", (10, 30), 
@@ -282,7 +256,7 @@ class TonePredictor:
         cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
         cap.set(cv2.CAP_PROP_FPS, 20)
         
-        print("=== HỆ THỐNG DỰ ĐOÁN DẤU THANH ===")
+        print("=== HỆ THỐNG DỰ ĐOÁN DẤU THANH (LSTM) ===")
         print("Nhấn 'q' để thoát, 'space' để dự đoán")
         print("Thực hiện dấu thanh trong 30 frames...")
         
@@ -316,17 +290,10 @@ class TonePredictor:
 
 def main():
     """Hàm chính"""
-    print("=== HỆ THỐNG DỰ ĐOÁN DẤU THANH ===")
+    print("=== HỆ THỐNG DỰ ĐOÁN DẤU THANH (LSTM) ===")
     
-    # Hỏi người dùng chọn mô hình
-    model_type = None
-    while model_type not in ['lstm', 'mlp', '']:
-        model_type = input("Chọn mô hình (lstm/mlp, Enter để tự động): ").strip().lower()
-    if model_type == '':
-        model_type = None
-    
-    # Khởi tạo predictor với lựa chọn mô hình
-    predictor = TonePredictor(model_type=model_type)
+    # Khởi tạo predictor với mô hình LSTM
+    predictor = TonePredictor()
     predictor.run_prediction()
 
 if __name__ == "__main__":

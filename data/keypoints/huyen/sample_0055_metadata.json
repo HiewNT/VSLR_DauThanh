@@ -1,0 +1,9 @@
+{
+  "class": "huyen",
+  "sample_id": 55,
+  "num_frames": 30,
+  "keypoints_shape": [
+    30,
+    63
+  ]
+}
